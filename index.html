@@ -1,0 +1,1288 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Yorick</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/dexie@4.0.8/dist/dexie.min.js"></script>
+<style>
+/* Layout: a stage manager's marked-up script — typewriter face, blue-pencil marks for your part, red pencil for misses. */
+:root{
+  --paper:#f6f7f9; --sheet:#ffffff; --ink:#1b2130; --muted:#667085; --rule:#dde1e8;
+  --pencil:#2a55c9; --pencil-soft:#e6ecfb; --red:#c2362b; --red-soft:#fbe9e7; --green:#23794b; --green-soft:#e3f3ea; --amber:#9a6a00;
+  --f-script:"Courier Prime","Courier New",Courier,monospace;
+  --f-ui:"Atkinson Hyperlegible",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-display:"Bricolage Grotesque","Atkinson Hyperlegible",system-ui,sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --paper:#11141b; --sheet:#181c25; --ink:#e5e8ef; --muted:#9098aa; --rule:#2a303c;
+  --pencil:#8aa6ff; --pencil-soft:#1f2a47; --red:#ff8073; --red-soft:#3a1f1d; --green:#62d394; --green-soft:#16301f; --amber:#e0b24a; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --paper:#11141b; --sheet:#181c25; --ink:#e5e8ef; --muted:#9098aa; --rule:#2a303c;
+  --pencil:#8aa6ff; --pencil-soft:#1f2a47; --red:#ff8073; --red-soft:#3a1f1d; --green:#62d394; --green-soft:#16301f; --amber:#e0b24a; color-scheme:dark}
+
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--paper);color:var(--ink);font:15px/1.5 var(--f-ui);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1040px;margin:0 auto;padding-block:18px 120px}
+header.top{display:flex;flex-wrap:wrap;gap:12px 18px;align-items:center;justify-content:space-between;margin-bottom:14px}
+.brand{font:800 26px/1 var(--f-display);letter-spacing:-.02em;display:flex;align-items:baseline;gap:10px}
+.brand small{font:400 13px var(--f-ui);color:var(--muted);letter-spacing:0}
+.scriptbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+button,select,input,textarea{font:inherit;color:inherit}
+button{background:var(--sheet);border:1px solid var(--rule);border-radius:8px;padding:7px 12px;cursor:pointer}
+button:hover{border-color:var(--pencil)}
+button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible,summary:focus-visible{outline:2px solid var(--pencil);outline-offset:2px}
+button.primary{background:var(--pencil);border-color:var(--pencil);color:var(--sheet);font-weight:700}
+button.danger{color:var(--red)}
+button:disabled{opacity:.45;cursor:default}
+select{background:var(--sheet);border:1px solid var(--rule);border-radius:8px;padding:7px 10px;max-width:100%}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--rule);margin-bottom:16px}
+.tabs button{border:0;border-bottom:3px solid transparent;border-radius:0;background:none;padding:10px 14px;font-weight:700;color:var(--muted)}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--pencil)}
+.muted{color:var(--muted)}
+.label{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700}
+
+/* Editor */
+.editor{position:relative;height:max(380px,calc(100dvh - 300px));background:var(--sheet);border:1px solid var(--rule);border-radius:10px;overflow:hidden}
+.editor pre,.editor textarea{position:absolute;inset:0;margin:0;padding:18px 20px;font:16px/1.65 var(--f-script);white-space:pre-wrap;overflow-wrap:break-word;word-break:normal;tab-size:4;border:0;scrollbar-gutter:stable}
+.editor pre{overflow:hidden;pointer-events:none;color:var(--ink)}
+.editor textarea{overflow-y:auto;resize:none;background:transparent;color:transparent;caret-color:var(--ink);outline:none}
+.editor textarea::selection{background:var(--pencil-soft);color:transparent}
+.r-heading{font-weight:700;color:var(--pencil)}
+.r-cue{font-weight:700;letter-spacing:.02em}
+.r-cue.mine,.r-dialogue.mine{color:var(--pencil)}
+.r-dialogue.mine{font-weight:700}
+.r-paren,.nt{color:var(--muted);font-style:italic}
+.r-direction{font-style:italic;color:var(--muted)}
+.r-meta{color:var(--amber)}
+.cm{color:var(--muted);opacity:.7;text-decoration:line-through;text-decoration-color:transparent;background:repeating-linear-gradient(90deg,transparent 0 6px,color-mix(in srgb,var(--muted) 12%,transparent) 6px 12px)}
+.below{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:12px}
+@media (max-width:720px){.below{grid-template-columns:1fr}}
+.stats{display:flex;flex-wrap:wrap;gap:6px 16px;font-variant-numeric:tabular-nums}
+.stats b{font-weight:700}
+.lint{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:4px}
+.lint li button{all:unset;cursor:pointer;color:var(--amber)}
+.lint li button:focus-visible{outline:2px solid var(--pencil)}
+.cheat{font:13px/1.55 var(--f-script);color:var(--muted);margin:6px 0 0;padding:0;list-style:none;display:grid;gap:2px}
+.cheat code{color:var(--ink);font:inherit;font-weight:700}
+
+/* Dictate */
+.dict-bar{position:sticky;top:0;z-index:4;background:var(--paper);padding:4px 0 10px;display:grid;gap:8px;border-bottom:1px solid var(--rule);margin-bottom:12px}
+.dict-ctrl{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.dict-ctrl .status{flex:1 1 180px}
+#btnMic.on{background:var(--red);border-color:var(--red)}
+.dict-chips{display:flex;flex-wrap:wrap;gap:6px}
+.dict-chips button{padding:4px 10px;font:700 13px var(--f-script);letter-spacing:.03em}
+.dict-chips button[aria-pressed="true"]{background:var(--pencil);border-color:var(--pencil);color:var(--sheet)}
+.dict-chips button.add{font:400 13px var(--f-ui);letter-spacing:0;color:var(--muted)}
+.dict-live{min-height:3.2em;background:var(--sheet);border:1px solid var(--rule);border-radius:10px;padding:8px 14px;font:18px/1.45 var(--f-script)}
+.dict-live .who{font-weight:700;color:var(--pencil);margin-right:8px}
+.dict-live .idle{font:14px/1.5 var(--f-ui);color:var(--muted)}
+.dict-rows{display:grid;gap:6px}
+.drow{display:grid;grid-template-columns:150px minmax(0,1fr) auto;gap:6px 10px;align-items:start;background:var(--sheet);border:1px solid var(--rule);border-left:3px solid var(--rule);border-radius:8px;padding:6px 8px;scroll-margin:230px 0 40px}
+.drow.cur{border-left-color:var(--pencil)}
+.drow.redo{border-left-color:var(--red)}
+.drow.check{border-left-color:var(--amber)}
+.drow select{width:100%;padding:5px 6px;font-size:13px}
+.drow textarea{width:100%;background:transparent;border:0;border-radius:4px;padding:4px 6px;resize:none;font:16px/1.5 var(--f-script);field-sizing:content;min-height:2em;overflow:hidden}
+.drow.k-scene textarea{font-weight:700;color:var(--pencil)}
+.drow.k-dir textarea{font-style:italic;color:var(--muted)}
+.drow.k-raw textarea{color:var(--amber)}
+.drow.mine textarea{color:var(--pencil)}
+.drow-acts{display:flex;gap:4px;align-items:center}
+.drow-acts button{padding:3px 7px;font-size:12px}
+.drow .flag{all:unset;cursor:pointer;font:700 11px var(--f-ui);color:var(--amber);padding:2px 4px}
+.drow .flag:focus-visible{outline:2px solid var(--pencil)}
+#btnAddRow{margin-top:8px}
+.dict-help{margin-top:12px}
+.dict-help .hint{font-size:13px;color:var(--muted);margin:8px 0 0}
+@media (max-width:720px){.drow{grid-template-columns:minmax(0,1fr)}}
+
+/* Cast */
+.cast{display:grid;gap:10px}
+.cast-row{display:grid;grid-template-columns:minmax(160px,1.2fr) minmax(0,2fr) auto;gap:10px 16px;align-items:center;background:var(--sheet);border:1px solid var(--rule);border-radius:10px;padding:12px 14px}
+.cast-row.is-mine{border-color:var(--pencil);box-shadow:inset 3px 0 0 var(--pencil)}
+.cast-name{display:flex;flex-direction:column;gap:2px;min-width:0}
+.cast-name strong{font:700 16px var(--f-script);letter-spacing:.03em}
+.cast-ctrls{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;min-width:0}
+.cast-ctrls select{flex:1 1 200px;min-width:0}
+.cast-ctrls label{display:flex;gap:6px;align-items:center;font-size:13px;color:var(--muted)}
+.cast-ctrls input[type=range]{width:90px;accent-color:var(--pencil)}
+.mine-toggle{display:flex;gap:6px;align-items:center;font-size:13px}
+.mine-toggle input{accent-color:var(--pencil);width:16px;height:16px}
+@media (max-width:640px){.cast-row{grid-template-columns:1fr}}
+
+/* Rehearse */
+.rehearse{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:20px;align-items:start}
+@media (max-width:820px){.rehearse{grid-template-columns:1fr}}
+.side{display:grid;gap:14px;position:sticky;top:12px}
+@media (max-width:820px){.side{position:static}}
+.panel{background:var(--sheet);border:1px solid var(--rule);border-radius:10px;padding:14px}
+.panel h3{margin:0 0 8px;font:700 12px var(--f-ui);text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+details.panel summary{cursor:pointer;font:700 12px var(--f-ui);text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.field{display:grid;gap:4px;margin-top:12px}
+.field label{font-size:13px;font-weight:700}
+.field .hint{font-size:12px;color:var(--muted)}
+.check{display:flex;gap:8px;align-items:center;margin-top:12px;font-size:14px}
+.check input{accent-color:var(--pencil);width:16px;height:16px}
+.sheet{background:var(--sheet);border:1px solid var(--rule);border-radius:10px;padding:8px 0;font-family:var(--f-script);font-size:16px;line-height:1.6;min-width:0}
+.it{padding:8px 22px;border-left:3px solid transparent;cursor:pointer;position:relative}
+.it:hover{background:color-mix(in srgb,var(--pencil-soft) 45%,transparent)}
+.it.heading{font-weight:700;color:var(--pencil);padding-top:18px;text-transform:uppercase;letter-spacing:.04em;cursor:pointer}
+.it.direction{font-style:italic;color:var(--muted);padding-left:40px}
+.it .who{font-weight:700;letter-spacing:.04em;margin-left:22%}
+.it .txt{margin-left:8%;margin-right:8%}
+.it .txt .nt{font-size:.92em}
+.it.mine .who{color:var(--pencil)}
+.it.mine .txt{color:var(--pencil)}
+.it.masked .txt{letter-spacing:.06em;color:var(--muted)}
+.it.cur{background:var(--pencil-soft);border-left-color:var(--pencil)}
+.it.startpt{border-left-color:var(--pencil);border-left-style:dashed}
+.it.startpt::before{content:"Start here";position:absolute;right:14px;top:9px;font:700 10px var(--f-ui);color:var(--pencil);letter-spacing:.08em;text-transform:uppercase}
+.it .live{margin:6px 8% 0;font:italic 15px var(--f-ui);color:var(--muted)}
+.it .diff{margin:6px 8% 0;font:15px/1.7 var(--f-ui)}
+.it .live:empty,.it .diff:empty{display:none}
+.diff .del{color:var(--red);text-decoration:line-through;text-decoration-thickness:2px}
+.diff .ins{color:var(--amber)}
+.diff .close{text-decoration:underline dotted var(--amber);text-underline-offset:3px}
+.chip{display:inline-block;font:700 11px/1 var(--f-ui);padding:4px 7px;border-radius:999px;letter-spacing:.04em;vertical-align:middle;margin-left:8px;font-variant-numeric:tabular-nums}
+.chip.ok{background:var(--green-soft);color:var(--green)}
+.chip.bad{background:var(--red-soft);color:var(--red)}
+.chip.mid{background:var(--pencil-soft);color:var(--pencil)}
+.typebox{display:flex;gap:8px;margin:8px 8% 0}
+.typebox input{flex:1;min-width:0;background:var(--paper);border:1px solid var(--rule);border-radius:8px;padding:8px 10px;font-family:var(--f-ui)}
+.missed{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.missed li{display:grid;gap:2px;font-size:13px}
+.missed button{all:unset;cursor:pointer;font-family:var(--f-script);font-size:14px;color:var(--ink)}
+.missed button:hover{color:var(--pencil)}
+.missed .muted{font-variant-numeric:tabular-nums}
+.empty{padding:28px 22px;color:var(--muted);font-family:var(--f-ui)}
+.notice{border:1px solid var(--amber);color:var(--ink);background:color-mix(in srgb,var(--amber) 10%,var(--sheet));border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:14px}
+.notice[data-kind="error"]{border-color:var(--red);background:var(--red-soft)}
+
+.dock{position:fixed;left:0;right:0;bottom:0;background:var(--sheet);border-top:1px solid var(--rule);
+  padding:10px max(16px,env(safe-area-inset-right,0px)) calc(10px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));z-index:5}
+.dock-in{max-width:1040px;margin:0 auto;display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.status{flex:1 1 220px;min-width:0;display:flex;gap:10px;align-items:center}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--rule);flex:none}
+.dot.speaking{background:var(--amber)}
+.dot.listening{background:var(--red);animation:pulse 1.2s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.35}}
+@media (prefers-reduced-motion:reduce){.dot.listening{animation:none}}
+.status-text{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dock .btns{display:flex;gap:8px;flex-wrap:wrap}
+.dock button{padding:9px 14px}
+#btnLine{font-weight:700;color:var(--red);border-color:var(--red)}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">Yorick <small>line rehearsal</small></div>
+    <div class="scriptbar">
+      <label class="label" for="scriptSel">Script</label>
+      <select id="scriptSel" aria-label="Current script"></select>
+      <button id="btnNew" type="button">New</button>
+      <button id="btnImport" type="button">Import</button>
+      <button id="btnExport" type="button">Export</button>
+      <button id="btnDelete" type="button" class="danger">Delete</button>
+      <input id="fileIn" type="file" accept=".fountain,.txt,.md,text/plain" hidden>
+    </div>
+  </header>
+  <div id="notice" class="notice" hidden></div>
+
+  <nav class="tabs" role="tablist">
+    <button role="tab" id="tab-script" aria-selected="true" data-tab="script">Script</button>
+    <button role="tab" id="tab-dictate" aria-selected="false" data-tab="dictate">Dictate</button>
+    <button role="tab" id="tab-cast" aria-selected="false" data-tab="cast">Cast</button>
+    <button role="tab" id="tab-rehearse" aria-selected="false" data-tab="rehearse">Rehearse</button>
+  </nav>
+
+  <section id="view-script" role="tabpanel">
+    <div class="editor">
+      <pre id="hl" aria-hidden="true"></pre>
+      <textarea id="ed" spellcheck="false" aria-label="Script text" autocapitalize="off" autocomplete="off"></textarea>
+    </div>
+    <div class="below">
+      <div class="panel">
+        <h3>This script</h3>
+        <div class="stats" id="stats"></div>
+        <ul class="lint" id="lint"></ul>
+      </div>
+      <div class="panel">
+        <h3>Format</h3>
+        <ul class="cheat">
+          <li><code># Scene 2</code> starts a scene</li>
+          <li><code>NORA</code> on its own line, then her words below</li>
+          <li><code>(quietly)</code> under a name is an acting note</li>
+          <li>Any other paragraph is a stage direction</li>
+          <li><code>/* note */</code> is ignored · <code>@Name</code> forces a cue</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section id="view-dictate" role="tabpanel" hidden>
+    <div class="dict-bar">
+      <div class="dict-ctrl">
+        <button type="button" id="btnMic" class="primary">Start dictating</button>
+        <button type="button" id="btnNextLine" title="Finish this line (Alt+N)">Next line</button>
+        <button type="button" id="btnDictUndo" disabled>Undo</button>
+        <button type="button" id="btnCheck" hidden></button>
+        <div class="status"><span class="dot" id="dictDot"></span><span class="status-text" id="dictStatus">Ready</span></div>
+      </div>
+      <div class="dict-chips" id="dictChips" role="group" aria-label="Who is speaking"></div>
+      <div class="dict-live" id="dictLive"></div>
+    </div>
+    <div class="dict-rows" id="dictRows"></div>
+    <button type="button" id="btnAddRow">Add a line</button>
+    <details class="panel dict-help">
+      <summary>Voice commands and keys</summary>
+      <label class="check"><input type="checkbox" id="setDictCommands"> Listen for voice commands</label>
+      <ul class="cheat">
+        <li>Pause around each command so it stands alone.</li>
+        <li><code>Nora</code> switches to a character already in the script</li>
+        <li><code>character Dockhand</code> adds a new character</li>
+        <li><code>stage direction</code> · <code>new scene</code> · <code>scene two</code></li>
+        <li><code>next line</code> finishes the line, same speaker</li>
+        <li><code>acting note quietly</code> adds (quietly)</li>
+        <li><code>question mark</code> · <code>exclamation point</code> · <code>full stop</code>, and <code>comma</code> or <code>period</code> at the end of a phrase</li>
+        <li><code>scratch that</code> undoes the last phrase · <code>stop listening</code></li>
+      </ul>
+      <ul class="cheat">
+        <li><code>Enter</code> splits a line at the cursor, or moves on from its end</li>
+        <li><code>Shift+Enter</code> adds a line break · <code>Backspace</code> at the start joins with the line above</li>
+        <li><code>Space</code> starts or stops the mic · <code>Alt+N</code> next line · <code>Alt+1…9</code> pick a character · <code>Alt+0</code> stage direction</li>
+      </ul>
+      <p class="hint" id="dictHint"></p>
+    </details>
+  </section>
+
+  <section id="view-cast" role="tabpanel" hidden>
+    <p class="muted" style="margin-top:0">Tick the parts you're playing. Everyone else is read aloud with the voice you pick. Voices come from your browser and operating system.</p>
+    <div class="cast" id="cast"></div>
+  </section>
+
+  <section id="view-rehearse" role="tabpanel" hidden>
+    <div class="rehearse">
+      <div class="sheet" id="sheet"></div>
+      <aside class="side">
+        <div class="panel">
+          <h3>Start from</h3>
+          <select id="sceneSel" aria-label="Scene to start from" style="width:100%"></select>
+          <p class="muted" style="margin:8px 0 0;font-size:13px">Or tap any line in the script to start there.</p>
+        </div>
+        <details class="panel" id="settingsBox">
+          <summary>Rehearsal settings</summary>
+          <div class="field"><label for="setMode">What gets read</label>
+            <select id="setMode"><option value="full">The whole scene</option><option value="cue">Only my cue lines</option></select></div>
+          <div class="field"><label for="setHide">My lines on screen</label>
+            <select id="setHide"><option value="show">Show them</option><option value="first">First word only</option><option value="hidden">Hide them</option></select></div>
+          <div class="field"><label for="setEngine">Listening</label>
+            <select id="setEngine"><option value="browser">Browser speech recognition</option><option value="local">On-device (Chrome)</option><option value="manual">Type my lines instead</option></select>
+            <span class="hint" id="engineHint"></span>
+            <button type="button" id="btnInstall" hidden>Download speech model</button></div>
+          <div class="field"><label for="setPass">Counts as correct</label>
+            <select id="setPass"><option value="100">Word for word</option><option value="85">Close (85%)</option><option value="60">The gist (60%)</option></select></div>
+          <div class="field"><label for="setMiss">When I miss a line</label>
+            <select id="setMiss"><option value="continue">Show the mistakes and keep going</option><option value="retry">Stop and have me try again</option></select></div>
+          <div class="field"><label for="setSilence">Pause before my line counts as finished</label>
+            <select id="setSilence"><option value="2">2 seconds</option><option value="3">3 seconds</option><option value="5">5 seconds</option><option value="8">8 seconds</option></select>
+            <span class="hint">The app also stops listening as soon as you say the last words of the line.</span></div>
+          <div class="field"><label for="setLang">Language</label>
+            <input id="setLang" type="text" style="background:var(--paper);border:1px solid var(--rule);border-radius:8px;padding:7px 10px" placeholder="en-US"></div>
+          <label class="check"><input type="checkbox" id="setDirections"> Read stage directions aloud</label>
+          <label class="check"><input type="checkbox" id="setStopScene"> Stop at the end of each scene</label>
+        </details>
+        <div class="panel">
+          <h3>Lines to work on</h3>
+          <ul class="missed" id="missed"></ul>
+        </div>
+      </aside>
+    </div>
+  </section>
+</div>
+
+<div class="dock" id="dock" hidden>
+  <div class="dock-in">
+    <div class="status"><span class="dot" id="dot"></span><span class="status-text" id="statusText">Ready</span></div>
+    <div class="btns">
+      <button type="button" id="btnBack" title="Back to the previous line">Back</button>
+      <button type="button" id="btnStart" class="primary">Start</button>
+      <button type="button" id="btnSkip" title="Skip this line">Skip</button>
+      <button type="button" id="btnLine" title="Give me a prompt (or say “line”)">Line!</button>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+const $=s=>document.querySelector(s);
+const esc=s=>s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const NARRATOR='__NARRATOR__';
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition||null;
+
+const SAMPLE=`Title: The Last Ferry
+Author: Sample scene for Yorick
+
+# Scene 1
+
+A ferry terminal at night. One light flickers. NORA sits on her suitcase. OWEN runs in, out of breath.
+
+OWEN
+Is this the last one? Tell me this isn't the last one.
+
+NORA
+(not looking up)
+It left twelve minutes ago.
+
+OWEN
+Twelve minutes. I ran the whole way from the bridge.
+
+NORA
+Then you ran the wrong way. The bridge is closer to the other dock.
+
+OWEN sits beside her. A long pause.
+
+OWEN
+You missed it too.
+
+NORA
+I didn't miss it. I watched it go. (beat) There's a difference.
+
+/* Let this pause breathe before Owen answers. */
+
+OWEN
+What's the difference?
+
+NORA
+Missing something is an accident. Watching it go is a decision.
+
+# Scene 2
+
+Later. A DOCKHAND crosses with a lantern.
+
+DOCKHAND
+You two waiting on the morning boat? That's six hours.
+
+OWEN
+We'll wait.
+
+NORA
+(surprised)
+We?
+
+DOCKHAND
+Suit yourselves. Coffee's in the office, if the machine's in a good mood.
+
+DOCKHAND exits.
+
+OWEN
+I'm Owen, by the way.
+
+NORA
+Nora. And that machine is never in a good mood.
+
+OWEN & NORA
+Six hours.
+
+Lights fade.
+`;
+
+/* ---------- Storage ---------- */
+let db=null;
+const DEFAULTS={mode:'full',hide:'first',engine:'browser',pass:85,onMiss:'continue',silence:3,lang:(navigator.language||'en-US'),readDirections:false,stopAtScene:true,dictCommands:true};
+const state={scripts:[],scriptId:null,text:'',parsed:null,cast:{},progress:{},settings:{...DEFAULTS},revealed:new Map(),cursor:0,tab:'script'};
+
+function notice(msg,kind){const n=$('#notice'); if(!msg){n.hidden=true;return;} n.textContent=msg; n.dataset.kind=kind||'info'; n.hidden=false;}
+
+async function initDB(){
+  if(!window.Dexie){ notice('The storage library could not load (are you offline?). Changes will not be saved this session.','error'); return null; }
+  const d=new Dexie('yorick');
+  d.version(1).stores({scripts:'++id,updated',cast:'[scriptId+name],scriptId',progress:'[scriptId+key],scriptId',kv:'k'});
+  await d.open(); return d;
+}
+const mem={scripts:[],cast:[],progress:[],kv:{}};
+async function kvGet(k){ if(!db) return mem.kv[k]; const r=await db.kv.get(k); return r?r.v:undefined; }
+async function kvSet(k,v){ if(!db){mem.kv[k]=v;return;} await db.kv.put({k,v}); }
+
+async function loadScripts(){
+  state.scripts = db ? await db.scripts.orderBy('updated').reverse().toArray() : mem.scripts;
+  if(!state.scripts.length){ const id=await saveScriptNew(SAMPLE); state.scripts=[{id,text:SAMPLE,updated:Date.now()}]; }
+}
+async function saveScriptNew(text){
+  const rec={text,updated:Date.now()};
+  if(db) return await db.scripts.add(rec);
+  rec.id=mem.scripts.length+1; mem.scripts.push(rec); return rec.id;
+}
+let saveTimer=null;
+function queueSave(){
+  clearTimeout(saveTimer);
+  saveTimer=setTimeout(saveNow,500);
+}
+async function saveNow(){ saveTimer=null; const s=state.scripts.find(x=>x.id===state.scriptId); if(s){s.text=state.text;s.updated=Date.now();} if(db) await db.scripts.update(state.scriptId,{text:state.text,updated:Date.now()}); renderScriptSel(); }
+async function flushSave(){ if(!saveTimer) return; clearTimeout(saveTimer); await saveNow(); }
+function titleOf(text){ const m=text.match(/^\s*Title:\s*(.+)$/im); return (m?m[1].trim():'')||'Untitled script'; }
+
+async function openScript(id){
+  await stopRun();
+  stopDictation(); await flushSave();
+  state.scriptId=id; await kvSet('current',id);
+  const s=state.scripts.find(x=>x.id===id); state.text=s?s.text:'';
+  $('#ed').value=state.text;
+  state.cast={}; state.progress={}; state.revealed=new Map(); state.cursor=0;
+  const castRows = db ? await db.cast.where('scriptId').equals(id).toArray() : mem.cast.filter(c=>c.scriptId===id);
+  for(const c of castRows) state.cast[c.name]=c;
+  const prog = db ? await db.progress.where('scriptId').equals(id).toArray() : mem.progress.filter(p=>p.scriptId===id);
+  for(const p of prog) state.progress[p.key]=p;
+  reparse(); await ensureCast(); renderAll(); renderScriptSel();
+}
+async function putCast(entry){ state.cast[entry.name]=entry; if(db) await db.cast.put(entry); else { const i=mem.cast.findIndex(c=>c.scriptId===entry.scriptId&&c.name===entry.name); if(i>=0) mem.cast[i]=entry; else mem.cast.push(entry);} }
+async function putProgress(p){ state.progress[p.key]=p; if(db) await db.progress.put(p); }
+
+/* ---------- Parser (Fountain for plays, small subset) ---------- */
+function stripComments(lines){
+  let inC=false;
+  return lines.map(l=>{
+    let out='',segs=[],j=0;
+    while(j<l.length){
+      if(inC){ const e=l.indexOf('*/',j); const end=e<0?l.length:e+2; segs.push({c:true,t:l.slice(j,end)}); j=end; if(e>=0) inC=false; }
+      else { const s=l.indexOf('/*',j); const end=s<0?l.length:s; if(end>j){ segs.push({c:false,t:l.slice(j,end)}); out+=l.slice(j,end);} j=end; if(s>=0) inC=true; }
+    }
+    return {out,segs};
+  });
+}
+function isCue(s){
+  s=s.replace(/^@/,'');
+  const base=s.replace(/\s*\([^)]*\)\s*$/,'').replace(/[.:]+$/,'').trim();
+  return base.length>0 && base.length<=40 && /[A-Z]/.test(base) && base===base.toUpperCase() && /^[A-Z0-9][A-Z0-9 .'’&\-\/,]*$/.test(base);
+}
+function normName(s){ return s.replace(/^@/,'').replace(/\s*\([^)]*\)\s*$/,'').replace(/[.:]+$/,'').trim().toUpperCase(); }
+function members(name){ return name.split(/\s*(?:&|\/|,|\bAND\b)\s*/).map(x=>x.trim()).filter(Boolean); }
+
+function parse(text){
+  const raw=text.split('\n'), cl=stripComments(raw), n=raw.length;
+  const roles=raw.map(()=>({t:'blank'}));
+  const items=[], scenes=[], chars=new Map(), warnings=[];
+  let i=0;
+  if(n && /^\s*[A-Za-z][A-Za-z ]{0,20}:\s*\S/.test(cl[0].out) && !isCue(cl[0].out.trim())){
+    while(i<n && cl[i].out.trim()!==''){ roles[i]={t:'meta'}; i++; }
+  }
+  const isBreak=k=>raw[k].trim()==='';
+  const ensureScene=()=>{ if(!scenes.length) scenes.push({title:'Opening',item:items.length}); };
+  while(i<n){
+    if(isBreak(i)){i++;continue;}
+    const para=[]; let j=i;
+    while(j<n && !isBreak(j)){ if(cl[j].out.trim()==='') roles[j]={t:'comment'}; else para.push(j); j++; }
+    i=j; if(!para.length) continue;
+    const first=cl[para[0]].out.trim();
+    if(first.startsWith('#')){
+      for(const k of para){
+        const t=cl[k].out.trim();
+        if(t.startsWith('#')){ const title=t.replace(/^#+\s*/,'')||'Untitled scene'; scenes.push({title,item:items.length}); roles[k]={t:'heading'}; items.push({type:'heading',text:title,line:k,scene:scenes.length-1}); }
+        else { roles[k]={t:'direction'}; items.push({type:'direction',text:t,line:k,scene:scenes.length-1}); }
+      }
+      continue;
+    }
+    ensureScene();
+    if((first.startsWith('@')||isCue(first)) && para.length>1){
+      const name=normName(first); roles[para[0]]={t:'cue',who:name};
+      const parts=[];
+      for(const k of para.slice(1)){ const t=cl[k].out.trim(); roles[k]={t:/^\(.*\)$/.test(t)?'paren':'dialogue',who:name}; parts.push(t); }
+      const display=parts.join(' ');
+      const spoken=display.replace(/\([^)]*\)/g,' ').replace(/\s+/g,' ').trim();
+      if(spoken){ items.push({type:'line',who:name,display,spoken,line:para[0],scene:scenes.length-1}); chars.set(name,(chars.get(name)||0)+1); }
+      else { warnings.push({line:para[0],msg:`${name} has a cue but nothing to say.`}); items.push({type:'direction',text:display,line:para[0],scene:scenes.length-1}); }
+      continue;
+    }
+    if(isCue(first) && para.length===1 && first.length<=24) warnings.push({line:para[0],msg:`“${first}” looks like a character name, but there are no words under it.`});
+    for(const k of para) roles[k]={t:'direction'};
+    items.push({type:'direction',text:para.map(k=>cl[k].out.trim()).join(' '),line:para[0],scene:scenes.length-1});
+  }
+  const counters={};
+  for(const it of items){ if(it.type!=='line') continue; const c=`${it.scene}|${it.who}`; counters[c]=(counters[c]||0)+1; it.key=`${it.scene}:${it.who}:${counters[c]}`; }
+  const names=[...chars.keys()];
+  for(const a of names) if(chars.get(a)===1) for(const b of names) if(a!==b && chars.get(b)>1 && lev(a,b)<=1){ warnings.push({line:items.find(x=>x.who===a).line,msg:`${a} speaks only once. Did you mean ${b}?`}); break; }
+  return {raw,cl,roles,items,scenes,chars,warnings};
+}
+
+/* ---------- Matching ---------- */
+const NUM=['zero','one','two','three','four','five','six','seven','eight','nine','ten','eleven','twelve','thirteen','fourteen','fifteen','sixteen','seventeen','eighteen','nineteen'];
+const TENS=['','','twenty','thirty','forty','fifty','sixty','seventy','eighty','ninety'];
+function numWords(s){ const n=+s; if(n<20) return NUM[n]; if(n<100) return TENS[Math.floor(n/10)]+(n%10?' '+NUM[n%10]:''); return s; }
+function tokens(t){
+  t=(t||'').toLowerCase().replace(/[’‘`]/g,"'")
+   .replace(/\bwon't\b/g,'will not').replace(/\bcan't\b/g,'can not').replace(/\bcannot\b/g,'can not').replace(/\bshan't\b/g,'shall not')
+   .replace(/n't\b/g,' not').replace(/'m\b/g,' am').replace(/'re\b/g,' are').replace(/'ve\b/g,' have').replace(/'ll\b/g,' will')
+   .replace(/\bokay\b/g,'ok').replace(/\b\d+\b/g,numWords).replace(/[-–—\/]/g,' ').replace(/[^a-z0-9'\s]/g,' ').replace(/'/g,'');
+  return t.split(/\s+/).filter(Boolean).flatMap(w=>BARE[w]||[w]);
+}
+// Contractions that arrive without the apostrophe ("didnt", "im").
+const BARE=Object.fromEntries([
+  ...['did','do','does','is','was','were','are','could','would','should','has','have','had','must','need'].map(b=>[b+'nt',[b,'not']]),
+  ['cant',['can','not']],['wont',['will','not']],['im',['i','am']],['ive',['i','have']],['youre',['you','are']],['theyre',['they','are']],
+  ['weve',['we','have']],['youve',['you','have']],['theyve',['they','have']],['youll',['you','will']],['theyll',['they','will']]]);
+function lev(a,b){ const m=a.length,n=b.length; if(!m) return n; if(!n) return m; let prev=Array.from({length:n+1},(_,j)=>j); for(let i=1;i<=m;i++){ const cur=[i]; for(let j=1;j<=n;j++) cur[j]=Math.min(prev[j]+1,cur[j-1]+1,prev[j-1]+(a[i-1]===b[j-1]?0:1)); prev=cur; } return prev[n]; }
+function close(a,b){ const m=Math.min(a.length,b.length); if(m<4) return false; const d=lev(a,b); return d<=1 || (m>=7&&d<=2); }
+function cost(a,b){ return a===b?0:(close(a,b)?4:10); }
+function align(a,b){
+  const n=a.length,m=b.length, W=m+1, D=new Int32Array((n+1)*W);
+  for(let i=0;i<=n;i++) D[i*W]=i*10; for(let j=0;j<=m;j++) D[j]=j*10;
+  for(let i=1;i<=n;i++) for(let j=1;j<=m;j++) D[i*W+j]=Math.min(D[(i-1)*W+j-1]+cost(a[i-1],b[j-1]),D[(i-1)*W+j]+10,D[i*W+j-1]+10);
+  const ops=[]; let i=n,j=m;
+  while(i>0||j>0){
+    if(i>0&&j>0){ const c=cost(a[i-1],b[j-1]); if(D[i*W+j]===D[(i-1)*W+j-1]+c){ ops.push({t:c===0?'ok':c===4?'close':'sub',e:a[i-1],s:b[j-1],ei:i-1,si:j-1}); i--;j--; continue; } }
+    if(i>0 && D[i*W+j]===D[(i-1)*W+j]+10){ ops.push({t:'del',e:a[i-1],ei:i-1}); i--; continue; }
+    ops.push({t:'ins',s:b[j-1],si:j-1}); j--;
+  }
+  return ops.reverse();
+}
+function dropLineCalls(said,exp){ return exp.includes('line') ? said : said.filter(w=>w!=='line'); }
+function isComplete(exp,said){
+  if(!said.length||!exp.length) return false;
+  const ops=align(exp,said); const good=ops.filter(o=>o.t==='ok'||o.t==='close').length;
+  if(good/exp.length<0.5) return false;
+  const lastOp=ops.find(o=>o.ei===exp.length-1);
+  return !!lastOp && (lastOp.t==='ok'||lastOp.t==='close') && lastOp.si>=said.length-2;
+}
+function judge(item,said,hints){
+  const exp=tokens(item.spoken), heard=dropLineCalls(tokens(said),exp);
+  const ops=align(exp,heard);
+  const exact=state.settings.pass>=100;
+  const good=ops.filter(o=>o.t==='ok'||(!exact&&o.t==='close')).length;
+  const extras=ops.filter(o=>o.t==='ins').length;
+  const score=exp.length?Math.min(1,good/(exp.length+extras*0.5)):1;
+  return {ops,score,pass:score*100>=state.settings.pass-0.001,prompted:hints>0,heard:said};
+}
+
+/* ---------- Cast & voices ---------- */
+let voices=[];
+function loadVoices(){ voices=('speechSynthesis' in window)?speechSynthesis.getVoices():[]; }
+loadVoices();
+if('speechSynthesis' in window) speechSynthesis.onvoiceschanged=()=>{ const had=voices.length; loadVoices(); if(!had&&voices.length) ensureCast().then(renderCast); else renderCast(); };
+function langVoices(){ const p=(state.settings.lang||'en').slice(0,2).toLowerCase(); const v=voices.filter(x=>x.lang.toLowerCase().startsWith(p)); return v.length?v:voices; }
+function isMine(name){ if(!name) return false; if(state.cast[name]?.mine) return true; const ms=members(name); return ms.length>1 && ms.some(m=>state.cast[m]?.mine); }
+function castFor(name){ if(state.cast[name]) return state.cast[name]; const m=members(name).find(x=>state.cast[x]); return m?state.cast[m]:{voice:'',rate:1,pitch:1}; }
+async function ensureCast(){
+  if(!state.parsed) return;
+  const names=[...state.parsed.chars.keys(),NARRATOR];
+  const pool=langVoices(); const used={};
+  for(const c of Object.values(state.cast)) if(c.voice) used[c.voice]=(used[c.voice]||0)+1;
+  const anyMine=Object.values(state.cast).some(c=>c.mine);
+  for(const name of names){
+    const c=state.cast[name];
+    if(c && (c.voice||!pool.length)) continue;
+    let voice='';
+    if(pool.length){ const sorted=[...pool].sort((a,b)=>(used[a.voiceURI]||0)-(used[b.voiceURI]||0)); voice=sorted[0].voiceURI; used[voice]=(used[voice]||0)+1; }
+    const reuse=voice?(used[voice]-1):0;
+    await putCast({scriptId:state.scriptId,name,voice,rate:1,pitch:c?.pitch||+(1+(reuse%2?-.12:.12)*Math.ceil(reuse/2)).toFixed(2),mine:c?.mine||(!anyMine&&name==='NORA'&&state.text===SAMPLE)});
+  }
+}
+function speechText(t){ return t.replace(/\b[A-Z][A-Z']+\b/g,w=>w[0]+w.slice(1).toLowerCase()); }
+function chunks(t){ const s=t.match(/[^.!?;]+[.!?;]*["”’)]*\s*/g)||[t]; const out=[]; let cur=''; for(const x of s){ if((cur+x).length>180&&cur){out.push(cur);cur=x;} else cur+=x; } if(cur.trim()) out.push(cur); return out; }
+async function speak(text,who,ctl){
+  if(!('speechSynthesis' in window)) { await sleep(400); return; }
+  const cfg=castFor(who);
+  for(const c of chunks(speechText(text))){
+    if(ctl.aborted||ctl.skip) break;
+    await new Promise(res=>{
+      const u=new SpeechSynthesisUtterance(c); const v=voices.find(x=>x.voiceURI===cfg.voice);
+      if(v){u.voice=v;u.lang=v.lang;} else u.lang=state.settings.lang;
+      u.rate=cfg.rate||1; u.pitch=cfg.pitch||1;
+      let done=false; const fin=()=>{ if(done) return; done=true; clearTimeout(safety); ctl.cancelSpeech=null; res(); };
+      const safety=setTimeout(fin, c.length*110/(u.rate||1)+4000);
+      u.onend=fin; u.onerror=fin; ctl.cancelSpeech=()=>{ speechSynthesis.cancel(); fin(); };
+      speechSynthesis.speak(u);
+    });
+  }
+  ctl.skip=false;
+}
+
+/* ---------- Listening ---------- */
+function micError(code){
+  return ({ 'not-allowed':'Microphone access was blocked. Allow the microphone for this page. Opening it from http://localhost stops the browser asking every time.',
+    'service-not-allowed':'This browser refused speech recognition here. Try Chrome or Edge, or switch Listening to “Type my lines instead”.',
+    'language-not-supported':'That language is not available for recognition. For on-device listening, download the speech model in Rehearsal settings.',
+    'audio-capture':'No microphone was found.',
+    'network':'Browser speech recognition needs a network connection. Try On-device, or type your lines.'})[code]||('Speech recognition stopped: '+code);
+}
+function listen(item,ctl,ui){
+  const exp=tokens(item.spoken), s=state.settings;
+  return new Promise(resolve=>{
+    let carried='', session='', sessionFinal='', last=Date.now(), started=Date.now(), spoke=false, finished=false, completeAt=0, restarts=0, rec=null, autoHinted=false, phrasesUnsupported=false;
+    let lineCalls=exp.filter(w=>w==='line').length;
+    const total=()=>(carried+' '+session).trim();
+    const finish=why=>{ if(finished) return; finished=true; clearInterval(tick); if(rec){ rec.onend=rec.onresult=rec.onerror=null; try{rec.abort();}catch{} } ctl.endListen=null; resolve({said:total(),why}); };
+    ctl.endListen=finish;
+    const onChange=()=>{
+      ui.live(total()); const said=tokens(total());
+      const calls=said.filter(w=>w==='line').length;
+      if(calls>lineCalls){ lineCalls=calls; ui.hint(); }
+      if(isComplete(exp,dropLineCalls(said,exp))){ if(!completeAt) completeAt=Date.now(); } else completeAt=0;
+    };
+    const make=()=>{
+      rec=new SR(); rec.lang=s.lang||'en-US'; rec.continuous=true; rec.interimResults=true; rec.maxAlternatives=1;
+      if(s.engine==='local'){ try{ rec.processLocally=true; }catch{} }
+      if(!phrasesUnsupported && window.SpeechRecognitionPhrase){ try{ rec.phrases=[new SpeechRecognitionPhrase(item.spoken.slice(0,200),3)]; }catch{} }
+      rec.onresult=e=>{ let f='',im=''; for(let k=0;k<e.results.length;k++){ const r=e.results[k]; if(r.isFinal) f+=' '+r[0].transcript; else im+=' '+r[0].transcript; } sessionFinal=f; session=f+' '+im; last=Date.now(); spoke=true; onChange(); };
+      rec.onerror=e=>{ if(e.error==='no-speech'||e.error==='aborted') return; if(e.error==='phrases-not-supported'){ phrasesUnsupported=true; return; } ui.error(micError(e.error)); finish('error'); };
+      rec.onend=()=>{ if(finished) return; carried=(carried+' '+sessionFinal).trim(); session=''; sessionFinal='';
+        if(++restarts>60){ finish('silence'); return; }
+        setTimeout(()=>{ if(finished) return; try{ make(); rec.start(); }catch(err){ ui.error('Could not restart the microphone: '+err.message); finish('error'); } },100); };
+    };
+    const tick=setInterval(()=>{
+      if(ctl.aborted) return finish('aborted');
+      const now=Date.now();
+      if(completeAt && now-last>650) return finish('done');
+      if(spoke && now-last>s.silence*1000) return finish('silence');
+      if(!spoke && !autoHinted && now-started>8000){ autoHinted=true; ui.hint(); }
+      if(!spoke && now-started>45000) return finish('silence');
+    },150);
+    try{ make(); rec.start(); }catch(err){ ui.error('Could not start the microphone: '+err.message); finish('error'); }
+  });
+}
+function typeIt(item,ctl,ui){
+  return new Promise(resolve=>{
+    let done=false; const fin=(said,why)=>{ if(done) return; done=true; ui.hideInput(); ctl.endListen=null; resolve({said,why}); };
+    ctl.endListen=why=>fin('',why);
+    ui.showInput(text=>fin(text,'typed'));
+  });
+}
+
+/* ---------- Rehearsal runner ---------- */
+const run={ctl:null,promise:null,idx:-1,phase:'idle',hints:0};
+function status(text,phase){ $('#statusText').textContent=text; $('#dot').className='dot'+(phase?(' '+phase):''); run.phase=phase||'idle'; updateControls(); }
+function updateControls(){
+  const active=!!run.ctl;
+  $('#btnStart').textContent=active?'Stop':'Start';
+  $('#btnSkip').disabled=!active; $('#btnBack').disabled=!state.parsed?.items.some(x=>x.type==='line');
+  $('#btnLine').disabled=!(active&&run.phase==='listening');
+}
+function nextLineMine(items,i){ for(let k=i+1;k<items.length;k++){ const it=items[k]; if(it.type==='heading') return false; if(it.type==='line') return isMine(it.who); } return false; }
+async function stopRun(){
+  const ctl=run.ctl;
+  if(ctl){ ctl.aborted=true; if('speechSynthesis' in window) speechSynthesis.cancel(); ctl.cancelSpeech?.(); ctl.endListen?.('aborted'); }
+  if(run.promise) await run.promise.catch(()=>{});
+  run.ctl=null; run.promise=null; setCurrent(-1); status('Ready');
+}
+async function startRun(from){
+  await stopRun();
+  if(!Object.values(state.cast).some(c=>c.mine)){ notice('Pick the part you are playing on the Cast tab first.'); switchTab('cast'); return; }
+  notice('');
+  const ctl={aborted:false}; run.ctl=ctl; updateControls();
+  run.promise=loop(from,ctl);
+}
+async function loop(from,ctl){
+  const items=state.parsed.items, s=state.settings;
+  let i=from;
+  for(;i<items.length;i++){
+    if(ctl.aborted) break;
+    const it=items[i]; run.idx=i;
+    if(it.type==='heading'){ if(i>from && s.stopAtScene){ state.cursor=i; markStart(); syncSceneSel(); status('End of scene. Press Start to go on.'); break; } setCurrent(i); continue; }
+    if(it.type==='direction'){ if(s.readDirections && s.mode==='full'){ setCurrent(i); status('Stage direction','speaking'); await speak(it.text,NARRATOR,ctl); } continue; }
+    if(!isMine(it.who)){
+      if(s.mode==='cue' && !nextLineMine(items,i)) continue;
+      setCurrent(i); status(`${it.who} is speaking`,'speaking'); await speak(it.spoken,it.who,ctl); continue;
+    }
+    setCurrent(i);
+    const res=await attempt(it,i,ctl);
+    if(ctl.aborted||res.why==='aborted') break;
+    if(res.why==='error'){ status('Stopped'); break; }
+    if(res.why==='skip'){ continue; }
+    const j=judge(it,res.said,run.hints);
+    showResult(i,j); await record(it,j); renderMissed();
+    if(!j.pass && s.onMiss==='retry'){ status('Not quite. Try that line again.'); await sleep(1600); i--; continue; }
+    await sleep(j.pass?350:1100);
+  }
+  if(run.ctl===ctl){ run.ctl=null; setCurrent(-1); if(i>=items.length){ status('End of the script'); state.cursor=0; markStart(); syncSceneSel(); } else if(!ctl.aborted && run.phase!=='idle' && !/End of scene|Stopped/.test($('#statusText').textContent)) status('Ready'); updateControls(); }
+}
+function attempt(it,idx,ctl){
+  run.hints=0;
+  const el=sheetItem(idx); const txt=el?.querySelector('.txt'); const live=el?.querySelector('.live'); const diff=el?.querySelector('.diff');
+  if(diff) diff.innerHTML='';
+  state.revealed.delete(it.key); paintMine(idx);
+  const ui={
+    live:t=>{ if(live) live.textContent=t?('“'+t+'”'):''; },
+    hint:()=>{ run.hints++; paintMine(idx); },
+    error:m=>notice(m,'error'),
+    showInput:cb=>{ if(!el) return; const box=document.createElement('form'); box.className='typebox';
+      box.innerHTML=`<input id="typeLine" type="text" autocomplete="off" placeholder="Type your line, then press Enter" aria-label="Your line"><button class="primary" type="submit">Done</button>`;
+      box.addEventListener('submit',e=>{e.preventDefault(); cb(box.querySelector('input').value);});
+      box.addEventListener('click',e=>e.stopPropagation());
+      el.appendChild(box); setTimeout(()=>box.querySelector('input').focus(),50); },
+    hideInput:()=>{ el?.querySelector('.typebox')?.remove(); }
+  };
+  const useMic = state.settings.engine!=='manual' && SR;
+  status(useMic?'Your line. Listening…':'Your line. Type it below.', useMic?'listening':'listening');
+  return useMic ? listen(it,ctl,ui) : typeIt(it,ctl,ui);
+}
+async function record(it,j){
+  const p=state.progress[it.key]||{scriptId:state.scriptId,key:it.key,attempts:0,misses:0,prompts:0,history:[]};
+  p.attempts++; if(!j.pass) p.misses++; if(j.prompted) p.prompts++;
+  p.last=Math.round(j.score*100); p.history=[...(p.history||[]),p.last].slice(-6); p.text=it.spoken; p.who=it.who; p.at=Date.now();
+  await putProgress(p);
+}
+function showResult(idx,j){
+  const it=state.parsed.items[idx]; state.revealed.set(it.key,j); paintMine(idx);
+}
+
+/* ---------- Rendering ---------- */
+function reparse(){ state.parsed=parse(state.text); if(state.cursor>=state.parsed.items.length) state.cursor=0; }
+function renderHighlight(){
+  const p=state.parsed;
+  const html=p.raw.map((l,i)=>{
+    const r=p.roles[i]; const segs=p.cl[i].segs;
+    let h=segs.length?segs.map(s=>s.c?`<span class="cm">${esc(s.t)}</span>`:(r.t==='dialogue'?esc(s.t).replace(/\([^)]*\)/g,m=>`<span class="nt">${m}</span>`):esc(s.t))).join(''):esc(l);
+    return `<span class="r-${r.t}${r.who&&isMine(r.who)?' mine':''}">${h}</span>`;
+  }).join('\n')+'\n ';
+  $('#hl').innerHTML=html; syncScroll();
+}
+function syncScroll(){ const ta=$('#ed'); $('#hl').scrollTop=ta.scrollTop; }
+function renderStats(){
+  const p=state.parsed; const lines=p.items.filter(x=>x.type==='line'); const mine=lines.filter(x=>isMine(x.who)).length;
+  const realScenes=p.scenes.length;
+  $('#stats').innerHTML=`<span><b>${realScenes}</b> scene${realScenes===1?'':'s'}</span><span><b>${p.chars.size}</b> characters</span><span><b>${lines.length}</b> lines</span><span>Yours: <b>${mine}</b></span>`;
+  const lint=$('#lint'); lint.innerHTML='';
+  if(!p.warnings.length){ lint.innerHTML='<li class="muted">No formatting problems found.</li>'; return; }
+  for(const w of p.warnings.slice(0,8)){ const li=document.createElement('li'); const b=document.createElement('button'); b.type='button'; b.textContent=`Line ${w.line+1}: ${w.msg}`; b.onclick=()=>gotoLine(w.line); li.appendChild(b); lint.appendChild(li); }
+}
+function gotoLine(n){ const ta=$('#ed'); const lines=ta.value.split('\n'); let pos=0; for(let i=0;i<n;i++) pos+=lines[i].length+1; ta.focus(); ta.setSelectionRange(pos,pos+lines[n].length); const lh=parseFloat(getComputedStyle(ta).lineHeight)||26; ta.scrollTop=Math.max(0,n*lh-ta.clientHeight/3); syncScroll(); }
+
+function renderCast(){
+  const box=$('#cast'); if(!state.parsed) return;
+  const counts=state.parsed.chars; const names=[...counts.keys()];
+  if(!names.length){ box.innerHTML='<div class="panel muted">No characters yet. Add a name in capitals on its own line in the Script tab, with their words underneath.</div>'; return; }
+  const pool=langVoices(); const all=voices;
+  const opts=sel=>{ const list=pool.length?pool:all; if(!list.length) return '<option value="">Default voice</option>';
+    return list.map(v=>`<option value="${esc(v.voiceURI)}"${v.voiceURI===sel?' selected':''}>${esc(v.name)} (${esc(v.lang)})</option>`).join(''); };
+  const row=(name,label,count)=>{
+    const c=castFor(name); const slug=name.replace(/[^A-Za-z0-9]+/g,'-'); const via=!state.cast[name]?.mine&&isMine(name);
+    const isNarr=name===NARRATOR;
+    return `<div class="cast-row${isMine(name)&&!isNarr?' is-mine':''}" data-name="${esc(name)}">
+      <div class="cast-name"><strong>${esc(label)}</strong><span class="muted">${isNarr?'Reads stage directions, if turned on':count+' line'+(count===1?'':'s')}${via?' · yours, as part of a group line':''}</span>
+      ${isNarr?'':`<label class="mine-toggle"><input type="checkbox" id="mine-${slug}" data-k="mine"${state.cast[name]?.mine?' checked':''}> I'm playing this part</label>`}</div>
+      <div class="cast-ctrls">
+        <select id="voice-${slug}" data-k="voice" aria-label="Voice for ${esc(label)}">${opts(c.voice)}</select>
+        <label>Speed <input type="range" id="rate-${slug}" data-k="rate" min="0.6" max="1.6" step="0.05" value="${c.rate||1}"></label>
+        <label>Pitch <input type="range" id="pitch-${slug}" data-k="pitch" min="0.5" max="1.6" step="0.05" value="${c.pitch||1}"></label>
+      </div>
+      <button type="button" data-k="test">Hear</button></div>`;
+  };
+  box.innerHTML=names.map(n=>row(n,n,counts.get(n))).join('')+row(NARRATOR,'Narrator',0);
+}
+async function onCastChange(e){
+  const rowEl=e.target.closest('.cast-row'); if(!rowEl) return; const name=rowEl.dataset.name; const k=e.target.dataset.k; if(!k||k==='test') return;
+  const c={...(state.cast[name]||{scriptId:state.scriptId,name,voice:'',rate:1,pitch:1,mine:false})};
+  if(k==='mine') c.mine=e.target.checked; else if(k==='voice') c.voice=e.target.value; else c[k]=+e.target.value;
+  await putCast(c);
+  if(k==='mine'){ renderCast(); renderHighlight(); renderStats(); renderSheet(); }
+}
+function onCastClick(e){
+  if(e.target.dataset.k!=='test') return; const name=e.target.closest('.cast-row').dataset.name;
+  const line=state.parsed.items.find(x=>x.type==='line'&&x.who===name);
+  const text=name===NARRATOR?'The lights come up on an empty stage.':(line?line.spoken:'Hello.');
+  if('speechSynthesis' in window) speechSynthesis.cancel();
+  speak(text,name,{aborted:false});
+}
+
+function maskText(display,level,hints){
+  const words=display.replace(/\([^)]*\)/g,' ').split(/\s+/).filter(Boolean); const n=words.length;
+  const steps=[0,1,3,Math.ceil(n/2),n]; const base=level==='first'?1:0;
+  const show=Math.min(n, Math.max(base, steps[Math.min(hints,steps.length-1)] || 0) + (hints>0&&base?0:0));
+  if(level==='hidden' && show===0) return `<span class="muted">(your line · ${n} word${n===1?'':'s'})</span>`;
+  return esc(words.slice(0,show).join(' '))+(show<n?' '+words.slice(show).map(w=>'_'.repeat(Math.min(Math.max(w.replace(/[^\w]/g,'').length,2),9))).join(' '):'');
+}
+function lineHTML(display){ return esc(display).replace(/\([^)]*\)/g,m=>`<span class="nt">${m}</span>`); }
+function diffHTML(j){
+  const parts=j.ops.map(o=>o.t==='ok'?esc(o.e):o.t==='close'?`<span class="close" title="Heard “${esc(o.s)}”">${esc(o.e)}</span>`:o.t==='del'?`<span class="del">${esc(o.e)}</span>`:o.t==='sub'?`<span class="del">${esc(o.e)}</span> <span class="ins">${esc(o.s)}</span>`:`<span class="ins">+${esc(o.s)}</span>`);
+  const pct=Math.round(j.score*100); const cls=j.pass?'ok':'bad';
+  return parts.join(' ')+`<span class="chip ${cls}">${pct}%${j.prompted?' · prompted':''}</span>`;
+}
+function paintMine(idx){
+  const it=state.parsed.items[idx]; const el=sheetItem(idx); if(!el||it.type!=='line'||!isMine(it.who)) return;
+  const txt=el.querySelector('.txt'), diff=el.querySelector('.diff');
+  const j=state.revealed.get(it.key); const level=state.settings.hide;
+  const listeningHere=run.ctl && run.idx===idx && !j;
+  if(j||level==='show'){ txt.innerHTML=lineHTML(it.display); el.classList.remove('masked'); }
+  else { txt.innerHTML=maskText(it.display,level,listeningHere?run.hints:0); el.classList.add('masked'); }
+  if(j){ diff.innerHTML=diffHTML(j); el.querySelector('.live').textContent=''; } else if(!listeningHere){ diff.innerHTML=''; }
+  const p=state.progress[it.key]; const chip=el.querySelector('.who .chip');
+  if(chip) chip.remove();
+  if(p&&p.attempts){ const s=document.createElement('span'); s.className='chip '+(p.last>=state.settings.pass?'ok':p.last>=60?'mid':'bad'); s.textContent=`${p.last}%`; s.title=`${p.attempts} tries, ${p.misses} missed`; el.querySelector('.who').appendChild(s); }
+}
+function sheetItem(idx){ return document.querySelector(`#sheet [data-idx="${idx}"]`); }
+function renderSheet(){
+  const sheet=$('#sheet'); const p=state.parsed; if(!p) return;
+  if(!p.items.length){ sheet.innerHTML='<div class="empty">This script is empty. Write or paste a scene in the Script tab.</div>'; return; }
+  sheet.innerHTML=p.items.map((it,i)=>{
+    if(it.type==='heading') return `<div class="it heading" data-idx="${i}">${esc(it.text)}</div>`;
+    if(it.type==='direction') return `<div class="it direction" data-idx="${i}">${esc(it.text)}</div>`;
+    const mine=isMine(it.who);
+    return `<div class="it line${mine?' mine':''}" data-idx="${i}"><div class="who">${esc(it.who)}</div><div class="txt">${lineHTML(it.display)}</div>${mine?'<div class="live"></div><div class="diff"></div>':''}</div>`;
+  }).join('');
+  p.items.forEach((it,i)=>{ if(it.type==='line'&&isMine(it.who)) paintMine(i); });
+  markStart(); if(run.ctl) setCurrent(run.idx);
+  renderSceneSel(); renderMissed();
+}
+function markStart(){ document.querySelectorAll('#sheet .startpt').forEach(e=>e.classList.remove('startpt')); if(!run.ctl) sheetItem(state.cursor)?.classList.add('startpt'); }
+function setCurrent(idx){
+  document.querySelectorAll('#sheet .cur').forEach(e=>e.classList.remove('cur'));
+  if(idx<0){ markStart(); return; }
+  document.querySelectorAll('#sheet .startpt').forEach(e=>e.classList.remove('startpt'));
+  const el=sheetItem(idx); if(el){ el.classList.add('cur'); const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches; el.scrollIntoView({block:'center',behavior:reduce?'auto':'smooth'}); }
+}
+function renderSceneSel(){
+  const sel=$('#sceneSel'); const p=state.parsed;
+  sel.innerHTML=p.scenes.map((s,i)=>`<option value="${s.item}">${esc(s.title)}</option>`).join('');
+  syncSceneSel();
+}
+function syncSceneSel(){ const p=state.parsed; const it=p.items[state.cursor]; if(!it) return; const sc=p.scenes[it.scene]; if(sc) $('#sceneSel').value=String(sc.item); }
+function renderMissed(){
+  const ul=$('#missed'); const byKey=new Map(state.parsed.items.map((x,i)=>[x.key,i]));
+  const list=Object.values(state.progress).filter(p=>byKey.has(p.key)&&p.attempts&&(p.misses||p.prompts)).sort((a,b)=>((b.misses+b.prompts*.5)/b.attempts)-((a.misses+a.prompts*.5)/a.attempts)).slice(0,6);
+  if(!list.length){ ul.innerHTML='<li class="muted">Lines you miss or need a prompt on will collect here.</li>'; return; }
+  ul.innerHTML=list.map(p=>{ const it=state.parsed.items[byKey.get(p.key)]; const t=it.spoken.length>60?it.spoken.slice(0,58)+'…':it.spoken;
+    return `<li><button type="button" data-idx="${byKey.get(p.key)}">${esc(t)}</button><span class="muted">${esc(it.who)} · missed ${p.misses} of ${p.attempts}${p.prompts?` · prompted ${p.prompts}`:''} · last ${p.last}%</span></li>`; }).join('');
+}
+function cueBefore(idx){ const items=state.parsed.items; for(let k=idx-1;k>=0;k--){ if(items[k].type==='heading') return k; if(items[k].type==='line') return k; } return idx; }
+function renderScriptSel(){
+  const sel=$('#scriptSel'); sel.innerHTML=state.scripts.map(s=>`<option value="${s.id}"${s.id===state.scriptId?' selected':''}>${esc(titleOf(s.id===state.scriptId?state.text:s.text))}</option>`).join('');
+}
+function renderAll(){ renderHighlight(); renderStats(); renderCast(); renderSheet(); if(state.tab==='dictate') dictSync(); }
+
+/* ---------- Settings ---------- */
+const SETTING_IDS={mode:'#setMode',hide:'#setHide',engine:'#setEngine',pass:'#setPass',onMiss:'#setMiss',silence:'#setSilence',lang:'#setLang',readDirections:'#setDirections',stopAtScene:'#setStopScene'};
+function paintSettings(){ const s=state.settings; for(const [k,sel] of Object.entries(SETTING_IDS)){ const el=$(sel); if(el.type==='checkbox') el.checked=!!s[k]; else el.value=String(s[k]); } engineHint(); }
+async function onSetting(e){
+  const entry=Object.entries(SETTING_IDS).find(([,sel])=>$(sel)===e.target); if(!entry) return; const [k]=entry; const el=e.target;
+  let v=el.type==='checkbox'?el.checked:el.value; if(['pass','silence'].includes(k)) v=+v; if(k==='lang') v=v.trim()||'en-US';
+  state.settings[k]=v; await kvSet('settings',state.settings);
+  if(k==='hide'||k==='pass') renderSheet();
+  if(k==='engine'||k==='lang') engineHint();
+  if(k==='lang'){ renderCast(); }
+}
+async function engineHint(){
+  const h=$('#engineHint'), b=$('#btnInstall'); b.hidden=true; const s=state.settings;
+  if(s.engine==='manual'){ h.textContent='Type each line, then press Enter.'; return; }
+  if(!SR){ h.textContent='This browser has no speech recognition. Use Chrome or Edge, or type your lines.'; return; }
+  if(s.engine==='browser'){ h.textContent='In Chrome, audio is sent to Google for recognition. Your script stays on this device.'; return; }
+  if(typeof SR.available!=='function'){ h.textContent='On-device recognition is not available in this browser version.'; return; }
+  h.textContent='Checking for an on-device model…';
+  try{
+    const a=await SR.available({langs:[s.lang],processLocally:true});
+    if(a==='available') h.textContent='On-device model ready. Nothing leaves this computer.';
+    else if(a==='downloadable'||a==='downloading'){ h.textContent=a==='downloading'?'The model is downloading.':'A one-time download is needed for '+s.lang+'.'; b.hidden=a==='downloading'; }
+    else h.textContent='No on-device model for '+s.lang+' on this device.';
+  }catch(err){ h.textContent='Could not check: '+err.message; }
+}
+$('#btnInstall').onclick=async()=>{ const h=$('#engineHint'); h.textContent='Downloading…'; try{ const ok=await SR.install({langs:[state.settings.lang],processLocally:true}); h.textContent=ok?'Downloaded. On-device model ready.':'The download did not finish.'; $('#btnInstall').hidden=!!ok; }catch(err){ h.textContent='Download failed: '+err.message; } };
+
+/* ---------- Dictation ---------- */
+// Rows are the script's paragraphs. An untouched row keeps its original text, so dictating never reformats the rest of the script.
+const DIR='__DIRECTION__', SCN='__SCENE__', NEWC='__NEWCHAR__', RAWK='__RAW__', LOW_CONFIDENCE=0.65;
+const dict={rows:[],scriptId:null,seq:0,speaker:'',extra:[],cur:null,anchor:null,redo:null,undo:[],typing:null,rec:null,listening:false,interim:'',idle:0,phrasesOff:false,restoring:false,castTimer:null};
+const rowBy=id=>dict.rows.find(r=>r.id===id);
+const rowEl=id=>document.querySelector(`#dictRows [data-id="${id}"]`);
+function newRow(kind,who,text){ return {id:++dict.seq,kind,who:who||'',text:text||'',raw:null,cue:null,check:false}; }
+function rowsFrom(text){
+  let inC=false;
+  return text.split(/\n(?:[ \t]*\n)+/).map(p=>p.replace(/^\n+|\n+$/g,'')).filter(p=>p.trim()).map((p,i)=>{
+    const lines=p.split('\n'), first=lines[0].trim(), hadC=inC||p.includes('/*');
+    const o=p.lastIndexOf('/*'), c=p.lastIndexOf('*/'); if(o>c) inC=true; else if(c>=0) inC=false;
+    let r;
+    if(hadC||(i===0&&/^[A-Za-z][A-Za-z ]{0,20}:\s*\S/.test(first)&&!isCue(first))||(first.startsWith('#')&&lines.length>1)) r=newRow('raw','',p);
+    else if(first.startsWith('#')) r=newRow('scene','',first.replace(/^#+\s*/,''));
+    else if((first.startsWith('@')||isCue(first))&&lines.length>1){ r=newRow('line',normName(first),lines.slice(1).map(l=>l.trim()).join('\n')); r.cue=first; }
+    else r=newRow('dir','',lines.map(l=>l.trim()).join(' '));
+    r.raw=p; return r;
+  });
+}
+function rowOut(r){
+  if(r.raw!=null) return r.raw;
+  const t=r.text.trim(); if(!t) return '';
+  if(r.kind==='scene') return '# '+t.replace(/\s*\n\s*/g,' ').replace(/^#+\s*/,'');
+  if(r.kind==='dir') return t.replace(/\s*\n\s*/g,' ');
+  const body=t.replace(/\n\s*\n+/g,'\n');
+  if(r.kind==='raw') return body;
+  return (r.cue&&normName(r.cue)===r.who?r.cue:(isCue(r.who)?r.who:'@'+r.who))+'\n'+body;
+}
+function rowsOut(){ const out=dict.rows.map(rowOut).filter(Boolean).join('\n\n'); return out?out+'\n':''; }
+function dictNames(){ const names=[...state.parsed.chars.keys()]; for(const n of dict.extra) if(!names.includes(n)) names.push(n); return names; }
+function dictCommit(){
+  const text=rowsOut(); if(text===state.text) return;
+  state.text=text; ed.value=text; reparse(); queueSave(); renderDictChips();
+  clearTimeout(dict.castTimer); dict.castTimer=setTimeout(()=>ensureCast(),700);
+}
+function dictSync(){
+  if(dict.scriptId===state.scriptId && rowsOut()===state.text){ renderDict(); return; }
+  dict.scriptId=state.scriptId; dict.rows=rowsFrom(state.text); dict.undo=[]; dict.extra=[]; dict.cur=null; dict.redo=null;
+  const last=dict.rows[dict.rows.length-1]; dict.anchor=last?last.id:null;
+  const lastLine=[...dict.rows].reverse().find(r=>r.kind==='line'); dict.speaker=lastLine?lastLine.who:'';
+  renderDict();
+}
+function pushUndo(){ dict.undo.push({rows:dict.rows.map(r=>({...r})),cur:dict.cur,anchor:dict.anchor,speaker:dict.speaker,extra:[...dict.extra]}); if(dict.undo.length>100) dict.undo.shift(); }
+function dictUndo(){ const u=dict.undo.pop(); if(!u) return; Object.assign(dict,u,{redo:null,typing:null}); dictCommit(); renderDict(); }
+function insertRow(r){ const i=dict.rows.findIndex(x=>x.id===dict.anchor); dict.rows.splice(i<0?dict.rows.length:i+1,0,r); dict.anchor=r.id; }
+function speakerRow(text){ return dict.speaker?newRow('line',dict.speaker,text):newRow('dir','',text); }
+
+/* What was heard */
+function spokenPunct(t){
+  return t.replace(/\s+question mark\b/gi,'?').replace(/\s+exclamation (?:point|mark)\b/gi,'!').replace(/\s+full stop\b/gi,'.')
+    .replace(/\s+comma$/i,',').replace(/(?<!\b(?:a|an|the|this|that|my|your|our|their|his|her))\s+period$/i,'.');
+}
+function dictHear(raw,conf){
+  const t=raw.trim(); if(!t) return;
+  dict.idle=0;
+  if(state.settings.dictCommands){ if(dictCommand(t)) return; dictAppend(spokenPunct(t),conf); }
+  else dictAppend(t,conf);
+}
+function dictAppend(t,conf){
+  pushUndo();
+  let r=rowBy(dict.cur), added=false;
+  if(!r){ r=speakerRow(''); insertRow(r); dict.cur=r.id; added=true; }
+  if(dict.redo===r.id){ r.text=''; r.check=false; dict.redo=null; }
+  const prev=r.text.trim();
+  r.text=prev&&!/(?:[.?!]["”’)]*|\))$/.test(prev)?prev+' '+t:(prev?prev+' ':'')+t[0].toUpperCase()+t.slice(1);
+  r.raw=null; if(conf>0&&conf<LOW_CONFIDENCE) r.check=true;
+  dictCommit();
+  if(added) renderDict(); else { paintRow(r); paintDictCtrl(); }
+  if(document.activeElement?.tagName!=='TEXTAREA') rowEl(r.id)?.scrollIntoView({block:'nearest'});
+}
+function dictCommand(t){
+  const q=t.toLowerCase().replace(/[.,!?;:]+/g,'').trim();
+  if(/^(next|new) line$/.test(q)){ dictCloseRow(); return true; }
+  if(/^(scratch|undo) that$/.test(q)){ dictUndo(); return true; }
+  if(/^stop (dictating|dictation|listening)$/.test(q)){ stopDictation(); return true; }
+  if(q==='stage direction'){ setSpeaker(''); return true; }
+  if(q==='new scene'){ addScene(); return true; }
+  const sc=q.match(new RegExp('^scene (\\d+|'+NUM.join('|')+')$'));
+  if(sc){ addScene('Scene '+(/^\d+$/.test(sc[1])?sc[1]:NUM.indexOf(sc[1]))); return true; }
+  const note=t.match(/^acting note\s+(.+)$/i);
+  if(note){ dictAppend('('+note[1].replace(/[.,!?;:]+$/,'').toLowerCase()+')'); return true; }
+  const ch=q.match(/^character\s+(.+)$/);
+  if(ch){
+    const known=matchName(ch[1]);
+    if(known){ setSpeaker(known); return true; }
+    const pre=dictNames().find(n=>ch[1].startsWith(n.toLowerCase()+' '));
+    if(pre){ setSpeaker(pre); dictAppend(t.replace(/^character\s+/i,'').slice(pre.length).trim()); return true; }
+    if(ch[1].split(' ').length<=3){ addCharacter(ch[1]); return true; }
+    return false;
+  }
+  const name=matchName(q);
+  if(name){ setSpeaker(name); return true; }
+  return false;
+}
+const nameKey=s=>s.toUpperCase().replace(/[.,!?;:]+/g,'').replace(/\s*&\s*|\s+AND\s+/g,' & ').trim();
+function matchName(q){
+  const k=nameKey(q), names=dictNames();
+  return names.find(n=>nameKey(n)===k)||(k.length>=6?names.find(n=>close(nameKey(n),k)):null)||null;
+}
+function dictCloseRow(){
+  const r=rowBy(dict.cur); dict.cur=null; dict.redo=null;
+  if(r&&(r.kind==='line'||r.kind==='dir')&&/[\p{L}\p{N}]$/u.test(r.text.trim())){ r.text=r.text.trim()+'.'; r.raw=null; dictCommit(); paintRow(r); }
+  paintCur(); paintDictCtrl();
+}
+function setSpeaker(who){ dictCloseRow(); pushUndo(); dict.speaker=who; renderDictChips(); paintDictCtrl(); paintLive(); }
+function addCharacter(raw){
+  const name=normName(raw); if(!name) return;
+  const known=dictNames().find(n=>n===name);
+  if(!known) dict.extra.push(name);
+  setSpeaker(known||name);
+}
+function addScene(title){
+  dictCloseRow(); pushUndo();
+  const r=newRow('scene','',title||('Scene '+(dict.rows.filter(x=>x.kind==='scene').length+1)));
+  insertRow(r); dictCommit(); renderDict(); rowEl(r.id)?.scrollIntoView({block:'nearest'});
+}
+
+/* Microphone */
+function dictMake(){
+  const s=state.settings, rec=new SR(); dict.rec=rec;
+  rec.lang=s.lang||'en-US'; rec.continuous=true; rec.interimResults=true; rec.maxAlternatives=1;
+  if(s.engine==='local'){ try{ rec.processLocally=true; }catch{} }
+  if(s.engine==='local'&&!dict.phrasesOff&&window.SpeechRecognitionPhrase){ try{ rec.phrases=dictNames().map(n=>new SpeechRecognitionPhrase(n.toLowerCase(),3)); }catch{} }
+  let done=0;
+  rec.onresult=e=>{
+    let im='';
+    for(let k=e.resultIndex;k<e.results.length;k++){
+      const r=e.results[k];
+      if(!r.isFinal){ im+=r[0].transcript; continue; }
+      if(k<done) continue;
+      done=k+1; dict.interim=''; dictHear(r[0].transcript,r[0].confidence);
+      if(dict.rec!==rec) return;
+    }
+    dict.interim=im; if(im) dict.idle=0; paintLive();
+  };
+  rec.onerror=e=>{
+    if(e.error==='no-speech'||e.error==='aborted') return;
+    if(e.error==='phrases-not-supported'){ dict.phrasesOff=true; return; }
+    notice(micError(e.error),'error'); stopDictation();
+  };
+  rec.onend=()=>{
+    if(dict.rec!==rec) return;
+    if(dict.interim){ const t=dict.interim; dict.interim=''; dictHear(t); }
+    if(++dict.idle>60){ stopDictation(); return; }
+    setTimeout(()=>{ if(dict.rec!==rec) return; try{ dictMake(); dict.rec.start(); }catch(err){ notice('Could not restart the microphone: '+err.message,'error'); stopDictation(); } },100);
+  };
+}
+function startDictation(){
+  if(!SR||dict.listening) return;
+  if('speechSynthesis' in window) speechSynthesis.cancel();
+  notice(''); dict.listening=true; dict.idle=0; dict.interim='';
+  try{ dictMake(); dict.rec.start(); }catch(err){ notice('Could not start the microphone: '+err.message,'error'); stopDictation(); return; }
+  paintDictCtrl(); paintLive();
+}
+// Whatever is still on screen as interim text gets kept, so stopping never loses the last words.
+function stopDictation(){
+  const rec=dict.rec, left=dict.interim;
+  dict.rec=null; dict.listening=false; dict.interim='';
+  if(rec){ rec.onresult=rec.onerror=rec.onend=null; try{ rec.abort(); }catch{} }
+  if(left) dictHear(left);
+  if(dict.redo){ dict.redo=null; dict.cur=null; paintCur(); }
+  paintDictCtrl(); paintLive();
+}
+
+/* Dictate view */
+function renderDict(){
+  const a=document.activeElement, focused=a?.tagName==='TEXTAREA'?a.closest('.drow')?.dataset.id:null, s0=a?.selectionStart, s1=a?.selectionEnd;
+  $('#dictRows').innerHTML=dict.rows.length?dict.rows.map(rowHTML).join(''):'<div class="panel muted">Nothing here yet. Press Start dictating, or add a line below.</div>';
+  if(focused){ const ta=rowEl(focused)?.querySelector('textarea'); if(ta){ dict.restoring=true; ta.focus({preventScroll:true}); ta.setSelectionRange(s0,s1); dict.restoring=false; } }
+  renderDictChips(); paintCur(); paintDictCtrl(); paintLive();
+}
+function rowClass(r){ return `drow k-${r.kind}${r.kind==='line'&&isMine(r.who)?' mine':''}${r.check?' check':''}${dict.redo===r.id?' redo':''}`; }
+function rowHTML(r){
+  const names=dictNames(); if(r.kind==='line'&&!names.includes(r.who)) names.push(r.who);
+  const o=(v,l,on)=>`<option value="${esc(v)}"${on?' selected':''}>${esc(l)}</option>`;
+  const opts=names.map(n=>o(n,n,r.kind==='line'&&r.who===n)).join('')+o(DIR,'Stage direction',r.kind==='dir')+o(SCN,'Scene heading',r.kind==='scene')+(r.kind==='raw'?o(RAWK,'Title or note',true):'')+o(NEWC,'New character…',false);
+  return `<div class="${rowClass(r)}" data-id="${r.id}">
+    <select aria-label="Who or what this row is">${opts}</select>
+    <textarea rows="1" spellcheck="true" aria-label="Row text">${esc(r.text)}</textarea>
+    <div class="drow-acts">
+      <button type="button" class="flag" data-a="flag" title="The recogniser was unsure of this line. Click to dismiss."${r.check?'':' hidden'}>Check</button>
+      <button type="button" data-a="hear" title="Read this row aloud">Hear</button>
+      <button type="button" data-a="redo" title="Dictate this row again"${SR?'':' disabled'}>Redo</button>
+      <button type="button" data-a="up" aria-label="Move up" title="Move up">↑</button>
+      <button type="button" data-a="down" aria-label="Move down" title="Move down">↓</button>
+      <button type="button" class="danger" data-a="del" aria-label="Delete row" title="Delete row">×</button>
+    </div></div>`;
+}
+function paintRow(r){
+  const el=rowEl(r.id); if(!el) return;
+  el.className=rowClass(r)+(dict.anchor===r.id?' cur':''); el.querySelector('.flag').hidden=!r.check;
+  const ta=el.querySelector('textarea');
+  if(ta.value!==r.text){ const f=document.activeElement===ta, a=ta.selectionStart, b=ta.selectionEnd; ta.value=r.text; if(f) ta.setSelectionRange(a,b); }
+}
+function paintCur(){ for(const el of document.querySelectorAll('#dictRows .drow')) el.classList.toggle('cur',+el.dataset.id===dict.anchor); }
+function renderDictChips(){
+  const names=dictNames().slice();
+  if(dict.speaker&&!names.includes(dict.speaker)) names.push(dict.speaker);
+  const chip=(v,l,key)=>`<button type="button" data-who="${esc(v)}" aria-pressed="${dict.speaker===(v===DIR?'':v)}"${key?` title="Alt+${key}"`:''}>${esc(l)}</button>`;
+  const html=chip(DIR,'Stage direction',0)+names.map((n,i)=>chip(n,n,i<9?i+1:'')).join('')+'<button type="button" class="add" data-add="char">+ Character</button><button type="button" class="add" data-add="scene">+ Scene</button>';
+  const box=$('#dictChips'); if(box.innerHTML!==html) box.innerHTML=html;
+}
+function paintDictCtrl(){
+  const mic=$('#btnMic'); mic.textContent=dict.listening?'Stop':'Start dictating'; mic.classList.toggle('on',dict.listening); mic.disabled=!SR;
+  $('#btnDictUndo').disabled=!dict.undo.length; $('#btnNextLine').disabled=!dict.cur;
+  const n=dict.rows.filter(r=>r.check).length, chk=$('#btnCheck'); chk.hidden=!n; chk.textContent=`Check ${n} unsure line${n===1?'':'s'}`;
+  $('#dictDot').className='dot'+(dict.listening?' listening':'');
+  const as=dict.speaker?dict.speaker:'stage direction';
+  $('#dictStatus').textContent=!SR?'No speech recognition in this browser':dict.redo?'Say the new words for the marked row':dict.listening?`Listening · ${as}`:'Ready';
+}
+function paintLive(){
+  const box=$('#dictLive'); box.textContent='';
+  const span=(c,t)=>{ const s=document.createElement('span'); s.className=c; s.textContent=t; box.appendChild(s); };
+  if(!dict.listening&&!dict.interim){ span('idle',SR?'Pick who is speaking, press Start dictating, and read at a steady pace. Words appear here until the recogniser is sure of them.':'Type into the rows below. Chrome or Edge can take dictation.'); return; }
+  span('who',dict.speaker||'DIRECTION'); span('',dict.interim||'…');
+}
+function dictHintText(){
+  const e=state.settings.engine;
+  if(!SR) return 'This browser has no speech recognition. Use Chrome or Edge, or type into the rows.';
+  if(e==='local') return 'Using on-device recognition, which also listens out for your character names. Nothing leaves this computer. Language and engine are in Rehearse, under Rehearsal settings.';
+  return 'In Chrome, audio is sent to Google for recognition. On-device listening is an option under Rehearse, Rehearsal settings, along with the language.';
+}
+function focusRow(id,pos){ const ta=rowEl(id)?.querySelector('textarea'); if(!ta) return; ta.focus(); const p=pos==='end'?ta.value.length:(pos||0); ta.setSelectionRange(p,p); }
+function hearRow(r){
+  stopDictation();
+  if('speechSynthesis' in window) speechSynthesis.cancel();
+  speak(r.text.replace(/\([^)]*\)/g,' '),r.kind==='line'?r.who:NARRATOR,{aborted:false});
+}
+function onRowAction(e){
+  const b=e.target.closest('button[data-a]'); if(!b) return;
+  const id=+b.closest('.drow').dataset.id, r=rowBy(id), i=dict.rows.indexOf(r), a=b.dataset.a;
+  if(a==='flag'){ r.check=false; paintRow(r); paintDictCtrl(); }
+  else if(a==='hear') hearRow(r);
+  else if(a==='redo'){ dictCloseRow(); pushUndo(); dict.cur=id; dict.anchor=id; dict.redo=id; paintRow(r); paintCur(); startDictation(); paintDictCtrl(); }
+  else if(a==='up'||a==='down'){
+    const j=a==='up'?i-1:i+1; if(j<0||j>=dict.rows.length) return;
+    pushUndo(); [dict.rows[i],dict.rows[j]]=[dict.rows[j],dict.rows[i]]; dictCommit(); renderDict();
+    rowEl(id)?.querySelector(`button[data-a="${a}"]`)?.focus();
+  }
+  else if(a==='del'){
+    pushUndo(); dict.rows.splice(i,1); if(dict.cur===id) dict.cur=null; if(dict.redo===id) dict.redo=null;
+    if(dict.anchor===id){ const n=dict.rows[i-1]||dict.rows[0]; dict.anchor=n?n.id:null; }
+    dictCommit(); renderDict();
+  }
+}
+function onRowKey(e){
+  const ta=e.target; if(ta.tagName!=='TEXTAREA'||e.isComposing) return;
+  const r=rowBy(+ta.closest('.drow').dataset.id), i=dict.rows.indexOf(r), a=ta.selectionStart, b=ta.selectionEnd;
+  if(e.key==='Enter'&&!e.shiftKey&&r.kind!=='raw'){
+    e.preventDefault();
+    if(r.kind!=='scene'&&a<r.text.trimEnd().length){
+      pushUndo();
+      const n=newRow(r.kind,r.who,r.text.slice(b).trimStart()); r.text=r.text.slice(0,a).trimEnd(); r.raw=null; r.check=false;
+      dict.rows.splice(i+1,0,n); if(dict.cur===r.id) dict.cur=n.id;
+      dictCommit(); renderDict(); focusRow(n.id,0);
+    } else if(dict.rows[i+1]) focusRow(dict.rows[i+1].id,0);
+    else { pushUndo(); const n=r.kind==='scene'?speakerRow(''):newRow(r.kind,r.who,''); dict.rows.push(n); renderDict(); focusRow(n.id,0); }
+    return;
+  }
+  if(e.key==='Backspace'&&a===0&&b===0){
+    const p=dict.rows[i-1]; if(!p) return;
+    if(!r.text){ e.preventDefault(); pushUndo(); dict.rows.splice(i,1); if(dict.cur===r.id) dict.cur=null; dictCommit(); renderDict(); focusRow(p.id,'end'); return; }
+    if(p.kind===r.kind&&p.who===r.who&&(r.kind==='line'||r.kind==='dir')){
+      e.preventDefault(); pushUndo();
+      const at=p.text.trimEnd().length; p.text=p.text.trimEnd()+(at?' ':'')+r.text; p.raw=null; p.check=p.check||r.check;
+      dict.rows.splice(i,1); if(dict.cur===r.id) dict.cur=p.id;
+      dictCommit(); renderDict(); focusRow(p.id,at?at+1:0);
+    }
+  }
+}
+function onRowChange(e){
+  const sel=e.target; if(sel.tagName!=='SELECT') return;
+  const r=rowBy(+sel.closest('.drow').dataset.id), v=sel.value;
+  if(v===RAWK) return;
+  let who=v;
+  if(v===NEWC){ who=normName(prompt('New character name')||''); if(!who){ renderDict(); return; } if(!dictNames().includes(who)) dict.extra.push(who); }
+  pushUndo(); r.raw=null;
+  if(v===DIR){ r.kind='dir'; r.who=''; } else if(v===SCN){ r.kind='scene'; r.who=''; } else { r.kind='line'; r.who=who; }
+  dictCommit(); renderDict();
+}
+
+/* ---------- Tabs & events ---------- */
+function switchTab(t){
+  state.tab=t;
+  for(const b of document.querySelectorAll('.tabs button')) b.setAttribute('aria-selected',String(b.dataset.tab===t));
+  if(t!=='dictate'&&dict.scriptId!==null){ stopDictation(); dictCloseRow(); }
+  for(const v of ['script','dictate','cast','rehearse']) $('#view-'+v).hidden=v!==t;
+  $('#dock').hidden=t!=='rehearse';
+  if(t!=='rehearse') stopRun();
+  if(t==='rehearse') renderSheet();
+  if(t==='script'){ renderHighlight(); renderStats(); requestAnimationFrame(syncScroll); }
+  if(t==='dictate'){ dictSync(); $('#dictHint').textContent=dictHintText(); }
+  if(t==='cast') ensureCast().then(renderCast);
+}
+document.querySelector('.tabs').addEventListener('click',e=>{ const b=e.target.closest('button[data-tab]'); if(b) switchTab(b.dataset.tab); });
+
+const ed=$('#ed');
+ed.addEventListener('input',()=>{ state.text=ed.value; reparse(); renderHighlight(); renderStats(); queueSave(); clearTimeout(ed._ct); ed._ct=setTimeout(async()=>{ await ensureCast(); },700); });
+ed.addEventListener('scroll',syncScroll);
+ed.addEventListener('keydown',e=>{ if(e.key==='Tab'&&!e.shiftKey&&!e.altKey&&!e.ctrlKey&&!e.metaKey){ e.preventDefault(); document.execCommand('insertText',false,'    '); } });
+new ResizeObserver(syncScroll).observe(ed);
+
+$('#btnMic').onclick=()=>{ if(dict.listening) stopDictation(); else startDictation(); };
+$('#btnNextLine').onclick=dictCloseRow;
+$('#btnDictUndo').onclick=dictUndo;
+$('#btnCheck').onclick=()=>{ const rows=dict.rows, i=rows.findIndex(r=>r.id===dict.anchor); const next=rows.slice(i+1).concat(rows.slice(0,i+1)).find(r=>r.check); if(next){ focusRow(next.id,0); rowEl(next.id)?.scrollIntoView({block:'nearest'}); } };
+$('#btnAddRow').onclick=()=>{ dictCloseRow(); pushUndo(); const r=speakerRow(''); insertRow(r); renderDict(); focusRow(r.id,0); };
+$('#setDictCommands').addEventListener('change',async e=>{ state.settings.dictCommands=e.target.checked; await kvSet('settings',state.settings); });
+$('#dictChips').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  if(b.dataset.add==='scene'){ addScene(); return; }
+  if(b.dataset.add==='char'){ const n=prompt('New character name'); if(n) addCharacter(n); return; }
+  setSpeaker(b.dataset.who===DIR?'':b.dataset.who);
+});
+const rowsBox=$('#dictRows');
+rowsBox.addEventListener('click',onRowAction);
+rowsBox.addEventListener('keydown',onRowKey);
+rowsBox.addEventListener('change',onRowChange);
+rowsBox.addEventListener('focusin',e=>{
+  if(dict.restoring||e.target.tagName!=='TEXTAREA') return;
+  const id=+e.target.closest('.drow').dataset.id;
+  if(dict.cur!==id) dictCloseRow();
+  dict.anchor=id; dict.typing=null; paintCur();
+});
+rowsBox.addEventListener('input',e=>{
+  if(e.target.tagName!=='TEXTAREA') return;
+  const r=rowBy(+e.target.closest('.drow').dataset.id);
+  if(dict.typing!==r.id){ pushUndo(); dict.typing=r.id; }
+  r.text=e.target.value; r.raw=null; r.check=false; paintRow(r); dictCommit(); paintDictCtrl();
+});
+
+$('#cast').addEventListener('change',onCastChange);
+$('#cast').addEventListener('input',e=>{ if(e.target.type==='range') onCastChange(e); });
+$('#cast').addEventListener('click',onCastClick);
+$('#settingsBox').addEventListener('change',onSetting);
+
+$('#sheet').addEventListener('click',e=>{
+  const el=e.target.closest('[data-idx]'); if(!el) return; const idx=+el.dataset.idx;
+  state.cursor=idx; syncSceneSel();
+  if(run.ctl) startRun(idx); else markStart();
+});
+$('#sceneSel').addEventListener('change',e=>{ state.cursor=+e.target.value; markStart(); sheetItem(state.cursor)?.scrollIntoView({block:'start'}); if(run.ctl) startRun(state.cursor); });
+$('#missed').addEventListener('click',e=>{ const b=e.target.closest('button[data-idx]'); if(!b) return; const idx=cueBefore(+b.dataset.idx); state.cursor=idx; syncSceneSel(); markStart(); sheetItem(idx)?.scrollIntoView({block:'center'}); startRun(idx); });
+
+$('#btnStart').onclick=()=>{ if(run.ctl) stopRun(); else startRun(state.cursor); };
+$('#btnSkip').onclick=()=>{ const c=run.ctl; if(!c) return; if(c.endListen){ c.endListen('skip'); } else { c.skip=true; c.cancelSpeech?.(); } };
+$('#btnLine').onclick=()=>{ if(run.ctl && run.phase==='listening'){ run.hints++; paintMine(run.idx); } };
+$('#btnBack').onclick=()=>{
+  const items=state.parsed.items; const from=run.ctl?run.idx:state.cursor;
+  let k=from-1; while(k>0 && items[k].type!=='line') k--; if(k<0) k=0;
+  state.cursor=k; syncSceneSel();
+  if(run.ctl) startRun(k); else { markStart(); sheetItem(k)?.scrollIntoView({block:'center'}); }
+};
+document.addEventListener('keydown',e=>{
+  if(state.tab==='dictate'){
+    if(e.altKey&&e.code==='KeyN'){ e.preventDefault(); dictCloseRow(); }
+    else if(e.altKey&&/^Digit\d$/.test(e.code)){ const n=+e.code.slice(5), who=n?dictNames()[n-1]:''; if(who!==undefined){ e.preventDefault(); setSpeaker(who); } }
+    else if(e.code==='Space'&&!e.target.matches('input,textarea,select,button,summary')){ e.preventDefault(); $('#btnMic').click(); }
+    return;
+  }
+  if(state.tab!=='rehearse'||e.target.matches('input,textarea,select')) return;
+  if(e.code==='Space'){ e.preventDefault(); $('#btnStart').click(); }
+  else if(e.key==='l'||e.key==='L'){ $('#btnLine').click(); }
+  else if(e.key==='ArrowRight'){ $('#btnSkip').click(); }
+  else if(e.key==='ArrowLeft'){ $('#btnBack').click(); }
+});
+
+$('#scriptSel').addEventListener('change',e=>openScript(+e.target.value));
+$('#btnNew').onclick=async()=>{ const t='Title: Untitled\n\n# Scene 1\n\n'; const id=await saveScriptNew(t); state.scripts.unshift({id,text:t,updated:Date.now()}); await openScript(id); switchTab('script'); ed.focus(); ed.setSelectionRange(t.length,t.length); };
+$('#btnImport').onclick=()=>$('#fileIn').click();
+$('#fileIn').addEventListener('change',async e=>{ const f=e.target.files[0]; if(!f) return; let t=(await f.text()).replace(/\r\n?/g,'\n'); if(!/^\s*Title:/i.test(t)) t=`Title: ${f.name.replace(/\.[^.]+$/,'')}\n\n`+t; const id=await saveScriptNew(t); state.scripts.unshift({id,text:t,updated:Date.now()}); await openScript(id); switchTab('script'); e.target.value=''; });
+$('#btnExport').onclick=()=>{ const blob=new Blob([state.text],{type:'text/plain'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=titleOf(state.text).replace(/[^\w\- ]+/g,'').trim().replace(/\s+/g,'-')+'.fountain'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),2000); };
+$('#btnDelete').onclick=async()=>{
+  if(!confirm(`Delete “${titleOf(state.text)}” and its practice history? This can't be undone.`)) return;
+  const id=state.scriptId;
+  if(db){ await db.scripts.delete(id); await db.cast.where('scriptId').equals(id).delete(); await db.progress.where('scriptId').equals(id).delete(); }
+  else mem.scripts=mem.scripts.filter(s=>s.id!==id);
+  state.scripts=state.scripts.filter(s=>s.id!==id);
+  if(!state.scripts.length){ const nid=await saveScriptNew(SAMPLE); state.scripts=[{id:nid,text:SAMPLE,updated:Date.now()}]; }
+  await openScript(state.scripts[0].id);
+};
+
+addEventListener('pagehide',()=>{ stopDictation(); flushSave(); });
+
+/* ---------- Boot ---------- */
+(async function boot(){
+  try{ db=await initDB(); }catch(err){ db=null; notice('Local storage is unavailable ('+err.message+'). Changes will not be saved this session.','error'); }
+  try{ await navigator.storage?.persist?.(); }catch{}
+  const saved=await kvGet('settings'); if(saved) state.settings={...DEFAULTS,...saved};
+  paintSettings(); $('#setDictCommands').checked=!!state.settings.dictCommands;
+  await loadScripts();
+  const cur=await kvGet('current'); const id=state.scripts.some(s=>s.id===cur)?cur:state.scripts[0].id;
+  await openScript(id);
+  if(!SR && state.settings.engine!=='manual') notice('This browser has no speech recognition, so you will type your lines. Chrome or Edge can listen to you instead.');
+  if(location.protocol==='file:') console.info('Tip: serve this file from http://localhost so the microphone permission sticks.');
+  updateControls();
+})();
+</script>
+</body>
+</html>
